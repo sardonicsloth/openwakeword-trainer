@@ -22,11 +22,11 @@ output_dir: "/data/output"
 
 # Background audio for augmentation (downloaded by setup script)
 rir_paths:
-  - "/data/mit_rirs"
-background_paths:
-  - "/data/audioset_16k"
-  - "/data/fma"
-background_paths_duplication_rate: 1
+  - "/data/mit_rirs/Audio"
+# Note: background_paths is required by openWakeWord for augmentation
+# If not available, the augmentation step may be skipped
+background_paths: []
+background_paths_duplication_rate: []
 
 # Pre-computed negative features for training
 # Downloaded from HuggingFace (~2000 hours of audio)

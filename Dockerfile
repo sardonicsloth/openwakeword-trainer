@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     git \
     wget \
     curl \
+    unzip \
     build-essential \
     libsndfile1 \
     ffmpeg \
@@ -27,6 +28,10 @@ RUN python -m pip install --upgrade pip
 # Clone repositories
 RUN git clone https://github.com/dscripka/openWakeWord.git /app/openWakeWord
 RUN git clone https://github.com/rhasspy/piper-sample-generator.git /app/piper-sample-generator
+
+# Patch openWakeWord train.py to pass model parameter to generate_samples
+# (piper-sample-generator now requires explicit model path)
+RUN sed -i 's/generate_samples(/generate_samples(model=config.get("piper_model_path", "\/app\/piper-sample-generator\/models\/en_US-libritts_r-medium.pt"), /g' /app/openWakeWord/openwakeword/train.py
 
 # Download Piper TTS model
 RUN mkdir -p /app/piper-sample-generator/models && \
