@@ -1,0 +1,61 @@
+# openWakeWord Training Configuration Template
+# Copy this file and customize for your wake word
+
+# Model identification
+model_name: "my_wakeword"
+
+# Target phrase(s) to detect
+target_phrase:
+  - "hey assistant"
+
+# Custom negative phrases (similar sounding words to avoid false positives)
+custom_negative_phrases: []
+
+# Data generation settings
+n_samples: 10000           # Number of positive training samples
+n_samples_val: 2000        # Number of validation samples
+tts_batch_size: 50         # Batch size for TTS generation
+
+# Paths (relative to /data inside container)
+piper_sample_generator_path: "/app/piper-sample-generator"
+output_dir: "/data/output"
+
+# Background audio for augmentation (downloaded by setup script)
+rir_paths:
+  - "/data/mit_rirs"
+background_paths:
+  - "/data/audioset_16k"
+  - "/data/fma"
+background_paths_duplication_rate: 1
+
+# Pre-computed negative features for training
+# Downloaded from HuggingFace (~2000 hours of audio)
+false_positive_validation_data_path: "/data/features/validation_set_features.npy"
+feature_data_files:
+  ACAV100M_sample: "/data/features/openwakeword_features_ACAV100M_2000_hrs_16bit.npy"
+
+# Batch composition
+batch_n_per_class:
+  ACAV100M_sample: 1024    # Negative samples from ACAV100M
+  _adversarial_: 50        # Adversarial negative samples
+  _positive_: 50           # Positive samples
+
+# Model architecture
+model_type: "dnn"          # "dnn" or "rnn"
+layer_size: 32             # Hidden layer dimension
+
+# Audio settings
+total_length: 16000        # 1 second at 16kHz
+
+# Augmentation
+augmentation_rounds: 1     # Number of augmentation passes
+augmentation_batch_size: 16
+
+# Training parameters
+steps: 50000               # Maximum training steps
+max_negative_weight: 1500  # Maximum weight for hard negatives
+target_false_positives_per_hour: 0.2  # Target FP rate
+
+# Early stopping
+target_accuracy: 0.7
+target_recall: 0.5

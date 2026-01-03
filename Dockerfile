@@ -3,13 +3,14 @@ FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 
-# Install system dependencies including Python 3.10
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     python3.10 \
     python3.10-venv \
     python3-pip \
     git \
     wget \
+    curl \
     build-essential \
     libsndfile1 \
     ffmpeg \
@@ -32,48 +33,59 @@ RUN mkdir -p /app/piper-sample-generator/models && \
     wget -O /app/piper-sample-generator/models/en_US-libritts_r-medium.pt \
     'https://github.com/rhasspy/piper-sample-generator/releases/download/v2.0.0/en_US-libritts_r-medium.pt'
 
-# Install PyTorch 1.x with CUDA first
-RUN pip install torch==1.13.1+cu117 torchaudio==0.13.1+cu117 -f https://download.pytorch.org/whl/torch_stable.html
-
 # Install piper-phonemize from wheel
 RUN pip install https://github.com/rhasspy/piper-phonemize/releases/download/v1.1.0/piper_phonemize-1.1.0-cp310-cp310-manylinux_2_28_x86_64.whl
 
-# Install Python dependencies
+# Install PyTorch with CUDA
+RUN pip install torch==2.0.1+cu118 torchaudio==2.0.2+cu118 -f https://download.pytorch.org/whl/torch_stable.html
+
+# Install training dependencies (matching notebook versions)
 RUN pip install --no-cache-dir \
     'numpy<2' \
+    pyyaml \
     webrtcvad \
-    'audiomentations==0.33.0' \
-    torchinfo \
-    torchmetrics \
-    onnx \
-    onnx-tf \
-    'tensorflow<2.12' \
-    pronouncing \
-    datasets \
+    mutagen==1.47.0 \
+    torchinfo==1.8.0 \
+    torchmetrics==1.2.0 \
+    speechbrain==0.5.14 \
+    audiomentations==0.33.0 \
+    torch-audiomentations==0.11.0 \
+    acoustics==0.2.6 \
+    pronouncing==0.2.0 \
+    datasets==2.14.6 \
+    deep-phonemizer==0.0.19 \
     librosa \
     soundfile \
     scipy \
     scikit-learn \
-    torch_audiomentations \
     tqdm \
     requests \
-    mutagen \
     matplotlib \
+    onnx \
     onnxruntime-gpu
 
-# Install openWakeWord in editable mode
+# Install TensorFlow for TFLite conversion
+RUN pip install tensorflow==2.11.0 tensorflow_probability==0.19.0 onnx-tf==1.10.0
+
+# Install openWakeWord in editable mode (with training support)
 RUN pip install -e /app/openWakeWord
 
 # Install piper-sample-generator
 RUN pip install -e /app/piper-sample-generator
 
-# CRITICAL: Reinstall correct PyTorch versions AFTER all other installations
-RUN pip install --force-reinstall torch==1.13.1+cu117 torchaudio==0.13.1+cu117 -f https://download.pytorch.org/whl/torch_stable.html
+# Download openWakeWord embedding models
+RUN mkdir -p /app/openWakeWord/openwakeword/resources/models && \
+    wget -O /app/openWakeWord/openwakeword/resources/models/embedding_model.onnx \
+    https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/embedding_model.onnx && \
+    wget -O /app/openWakeWord/openwakeword/resources/models/embedding_model.tflite \
+    https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/embedding_model.tflite && \
+    wget -O /app/openWakeWord/openwakeword/resources/models/melspectrogram.onnx \
+    https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/melspectrogram.onnx && \
+    wget -O /app/openWakeWord/openwakeword/resources/models/melspectrogram.tflite \
+    https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/melspectrogram.tflite
 
-# Now install speechbrain with the correct torchaudio in place
-RUN pip install speechbrain==0.5.16
-
-# Download openWakeWord models during build
-RUN python -c "from openwakeword.utils import download_models; download_models()"
+# Copy training scripts
+COPY scripts/ /app/scripts/
+COPY configs/ /app/configs/
 
 WORKDIR /data
