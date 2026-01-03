@@ -26,6 +26,55 @@ import sys
 import yaml
 from pathlib import Path
 from shutil import copy2
+from concurrent.futures import ThreadPoolExecutor
+from tqdm import tqdm
+
+
+def resample_wav(wav_file: Path, target_sr: int = 16000) -> None:
+    """Resample a WAV file to target sample rate in-place."""
+    temp_file = wav_file.with_suffix('.tmp.wav')
+    cmd = [
+        "ffmpeg", "-y", "-i", str(wav_file),
+        "-ar", str(target_sr), "-ac", "1",
+        str(temp_file)
+    ]
+    result = subprocess.run(cmd, capture_output=True)
+    if result.returncode == 0:
+        temp_file.rename(wav_file)
+    else:
+        if temp_file.exists():
+            temp_file.unlink()
+
+
+def resample_generated_clips(output_dir: Path, model_name: str):
+    """Resample all generated clips to 16kHz for openWakeWord compatibility."""
+    print("\n" + "="*60)
+    print("Resampling generated clips to 16kHz")
+    print("="*60 + "\n")
+
+    model_dir = output_dir / model_name
+    dirs_to_resample = [
+        model_dir / "positive_train",
+        model_dir / "positive_test",
+        model_dir / "negative_train",
+        model_dir / "negative_test",
+    ]
+
+    all_wavs = []
+    for d in dirs_to_resample:
+        if d.exists():
+            all_wavs.extend(list(d.glob("*.wav")))
+
+    if not all_wavs:
+        print("No WAV files found to resample")
+        return
+
+    print(f"Resampling {len(all_wavs)} files...")
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(tqdm(executor.map(resample_wav, all_wavs), total=len(all_wavs)))
+
+    print("Resampling complete!")
 
 
 def create_config(wake_word: str, output_dir: Path, **kwargs) -> Path:
@@ -107,7 +156,7 @@ def main():
     parser.add_argument("--layer-size", type=int, help="Model layer size")
 
     # Step control
-    parser.add_argument("--step", type=str, choices=["generate", "augment", "train", "convert", "all"],
+    parser.add_argument("--step", type=str, choices=["generate", "resample", "augment", "train", "convert", "all"],
                         default="all", help="Training step to run")
 
     args = parser.parse_args()
@@ -130,14 +179,24 @@ def main():
         print("Error: Must provide either --config or --wake-word")
         sys.exit(1)
 
+    # Load config for model name
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+    model_name = config["model_name"]
+    output_dir = Path(config["output_dir"])
+
     # Run training steps
     if args.step == "all":
-        steps = ["generate", "augment", "train", "convert"]
+        steps = ["generate", "resample", "augment", "train", "convert"]
     else:
         steps = [args.step]
 
     for step in steps:
-        run_training_step(config_path, step)
+        if step == "resample":
+            # Resample generated clips to 16kHz
+            resample_generated_clips(output_dir, model_name)
+        else:
+            run_training_step(config_path, step)
 
     # Print output location
     with open(config_path) as f:
